@@ -1,9 +1,15 @@
 """FastMCP server exposing the Revolut Merchant API as MCP tools.
 
-Read tools are always registered. Write tools (create/cancel) are only
-registered when ``REVOLUT_MCP_ALLOW_WRITES=true`` — so the default posture is
-read-only, which is the safe default for letting an autonomous model poke a
+Read tools are always registered. Write tools (create/update/cancel/delete) are
+only registered when ``REVOLUT_MCP_ALLOW_WRITES=true`` — so the default posture
+is read-only, which is the safe default for letting an autonomous model poke a
 payments API.
+
+Tool registration is delegated to the per-domain modules under
+``operations`` (``customers`` — incl. payment-methods, ``orders``,
+``subscriptions``, ``plans``, ``webhooks``). ``build_server`` constructs the
+client and the error-mapping ``_safe`` helper, then calls each domain's
+``register(mcp, client, allow_writes, safe)``.
 
 Run it::
 
@@ -18,9 +24,9 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from . import operations as ops
 from .client import RevolutAPIError, RevolutClient
 from .config import Config
+from .operations import customers, orders, plans, subscriptions, webhooks
 
 
 def build_server(config: Config) -> FastMCP:
@@ -48,88 +54,8 @@ def build_server(config: Config) -> FastMCP:
                 "code": e.code,
             }
 
-    # ── Read tools (always available) ───────────────────────────────
-
-    @mcp.tool()
-    async def list_customers(email: str | None = None) -> dict:
-        """List Merchant customers, optionally filtered by exact email address."""
-        return await _safe(ops.list_customers(client, email=email))
-
-    @mcp.tool()
-    async def get_customer(customer_id: str) -> dict:
-        """Retrieve a single Merchant customer by its id."""
-        return await _safe(ops.get_customer(client, customer_id=customer_id))
-
-    @mcp.tool()
-    async def list_orders(limit: int | None = None) -> dict:
-        """List recent Merchant orders."""
-        return await _safe(ops.list_orders(client, limit=limit))
-
-    @mcp.tool()
-    async def get_order(order_id: str) -> dict:
-        """Retrieve a single Merchant order by its id."""
-        return await _safe(ops.get_order(client, order_id=order_id))
-
-    @mcp.tool()
-    async def list_subscriptions(customer_id: str | None = None) -> dict:
-        """List subscriptions, optionally filtered by customer id."""
-        return await _safe(ops.list_subscriptions(client, customer_id=customer_id))
-
-    @mcp.tool()
-    async def get_subscription(subscription_id: str) -> dict:
-        """Retrieve a single subscription by its id."""
-        return await _safe(ops.get_subscription(client, subscription_id=subscription_id))
-
-    @mcp.tool()
-    async def list_plans() -> dict:
-        """List Merchant subscription plans."""
-        return await _safe(ops.list_plans(client))
-
-    @mcp.tool()
-    async def get_plan(plan_id: str) -> dict:
-        """Retrieve a single plan, including its variations, by id."""
-        return await _safe(ops.get_plan(client, plan_id=plan_id))
-
-    # ── Write tools (gated) ─────────────────────────────────────────
-
-    if config.allow_writes:
-
-        @mcp.tool()
-        async def create_customer(email: str, full_name: str | None = None) -> dict:
-            """Create a Merchant customer. WRITE — requires REVOLUT_MCP_ALLOW_WRITES."""
-            return await _safe(ops.create_customer(client, email=email, full_name=full_name))
-
-        @mcp.tool()
-        async def create_order(
-            amount: int,
-            currency: str,
-            customer_id: str | None = None,
-            description: str | None = None,
-        ) -> dict:
-            """Create an order. ``amount`` is in the minor unit (cents/pence). WRITE."""
-            return await _safe(
-                ops.create_order(
-                    client,
-                    amount=amount,
-                    currency=currency,
-                    customer_id=customer_id,
-                    description=description,
-                ),
-            )
-
-        @mcp.tool()
-        async def create_subscription(plan_variation_id: str, customer_id: str) -> dict:
-            """Create a subscription against a plan variation for a customer. WRITE."""
-            return await _safe(
-                ops.create_subscription(
-                    client, plan_variation_id=plan_variation_id, customer_id=customer_id,
-                ),
-            )
-
-        @mcp.tool()
-        async def cancel_subscription(subscription_id: str) -> dict:
-            """Cancel a subscription and return its post-cancel state. WRITE."""
-            return await _safe(ops.cancel_subscription(client, subscription_id=subscription_id))
+    for mod in (customers, orders, subscriptions, plans, webhooks):
+        mod.register(mcp, client, allow_writes=config.allow_writes, safe=_safe)
 
     return mcp
 
