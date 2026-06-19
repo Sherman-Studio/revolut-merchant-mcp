@@ -16,18 +16,18 @@ from revolut_merchant_mcp.client import RevolutAPIError
 
 @respx.mock
 async def test_list_plans(client, base_url):
-    route = respx.get(f"{base_url}/plans").mock(
+    route = respx.get(f"{base_url}/subscription-plans").mock(
         return_value=httpx.Response(200, json={"plans": [{"id": "plan_1"}]}),
     )
     out = await ops.list_plans(client)
     assert out == {"plans": [{"id": "plan_1"}]}
     assert route.calls.last.request.method == "GET"
-    assert route.calls.last.request.url.path.endswith("/plans")
+    assert route.calls.last.request.url.path.endswith("/subscription-plans")
 
 
 @respx.mock
 async def test_get_plan(client, base_url):
-    route = respx.get(f"{base_url}/plans/plan_1").mock(
+    route = respx.get(f"{base_url}/subscription-plans/plan_1").mock(
         return_value=httpx.Response(200, json={"id": "plan_1", "variations": []}),
     )
     out = await ops.get_plan(client, plan_id="plan_1")
@@ -37,7 +37,7 @@ async def test_get_plan(client, base_url):
 
 @respx.mock
 async def test_create_plan_posts_name_and_variations(client, base_url):
-    route = respx.post(f"{base_url}/plans").mock(
+    route = respx.post(f"{base_url}/subscription-plans").mock(
         return_value=httpx.Response(201, json={"id": "plan_2", "name": "Gold"}),
     )
     variations = [
@@ -53,7 +53,7 @@ async def test_create_plan_posts_name_and_variations(client, base_url):
 
     req = route.calls.last.request
     assert req.method == "POST"
-    assert req.url.path.endswith("/plans")
+    assert req.url.path.endswith("/subscription-plans")
     sent = _json.loads(req.content)
     assert sent == {"name": "Gold", "variations": variations}
     # No trial_period given -> key omitted.
@@ -62,7 +62,7 @@ async def test_create_plan_posts_name_and_variations(client, base_url):
 
 @respx.mock
 async def test_create_plan_includes_trial_period_when_given(client, base_url):
-    route = respx.post(f"{base_url}/plans").mock(
+    route = respx.post(f"{base_url}/subscription-plans").mock(
         return_value=httpx.Response(201, json={"id": "plan_3"}),
     )
     await ops.create_plan(
@@ -78,7 +78,7 @@ async def test_create_plan_includes_trial_period_when_given(client, base_url):
 
 @respx.mock
 async def test_create_plan_forwards_idempotency_key(client, base_url):
-    route = respx.post(f"{base_url}/plans").mock(
+    route = respx.post(f"{base_url}/subscription-plans").mock(
         return_value=httpx.Response(201, json={"id": "plan_4"}),
     )
     await ops.create_plan(
@@ -92,7 +92,7 @@ async def test_create_plan_forwards_idempotency_key(client, base_url):
 
 @respx.mock
 async def test_get_plan_404_raises_api_error(client, base_url):
-    respx.get(f"{base_url}/plans/missing").mock(
+    respx.get(f"{base_url}/subscription-plans/missing").mock(
         return_value=httpx.Response(
             404, json={"code": "not_found", "message": "Plan not found"},
         ),

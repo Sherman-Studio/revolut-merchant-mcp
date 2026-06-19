@@ -1,9 +1,8 @@
 """Plans domain operations.
 
 Pure, framework-free async wrappers over ``RevolutClient`` for the Merchant
-subscription-plans endpoints. NOTE: existing code uses the ``/plans`` path; the
-research catalog suggests the live path is ``/subscription-plans`` — kept as-is
-for backward-compat in this refactor (tracked in uncertain_endpoints).
+subscription-plans endpoints. The live path is ``/subscription-plans``
+(confirmed against the live sandbox).
 
 ``register`` attaches the MCP tools (read always, write gated). Tool functions
 share names with the pure ops and call them via ``_``-prefixed private aliases.
@@ -22,12 +21,12 @@ __all__ = [
 
 async def list_plans(client: RevolutClient) -> dict:
     """List merchant subscription plans."""
-    return await client.get("/plans")
+    return await client.get("/subscription-plans")
 
 
 async def get_plan(client: RevolutClient, *, plan_id: str) -> dict:
     """Retrieve a single plan (including its variations) by id."""
-    return await client.get(f"/plans/{plan_id}")
+    return await client.get(f"/subscription-plans/{plan_id}")
 
 
 async def create_plan(
@@ -51,7 +50,9 @@ async def create_plan(
     body: dict = {"name": name, "variations": variations}
     if trial_period:
         body["trial_period"] = trial_period
-    return await client.post("/plans", json=body, idempotency_key=idempotency_key)
+    return await client.post(
+        "/subscription-plans", json=body, idempotency_key=idempotency_key,
+    )
 
 
 _list_plans = list_plans

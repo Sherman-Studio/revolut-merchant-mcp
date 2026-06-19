@@ -93,7 +93,7 @@ async def test_cancel_subscription_posts_then_reads_back(client, base_url):
 
 @respx.mock
 async def test_get_plan(client, base_url):
-    respx.get(f"{base_url}/plans/plan_1").mock(
+    respx.get(f"{base_url}/subscription-plans/plan_1").mock(
         return_value=httpx.Response(200, json={"id": "plan_1", "variations": []}),
     )
     out = await ops.get_plan(client, plan_id="plan_1")
